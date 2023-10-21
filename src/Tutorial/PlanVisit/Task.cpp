@@ -40,14 +40,28 @@ namespace Tutorial
   {
     using DUNE_NAMESPACES;
 
+    struct Arguments 
+    {
+      std::vector<double> points_to_visit;
+    };
+
     struct Task: public DUNE::Tasks::Task
     {
+      Arguments m_args; 
+
       //! Constructor.
       //! @param[in] name task name.
       //! @param[in] ctx context.
       Task(const std::string& name, Tasks::Context& ctx):
         DUNE::Tasks::Task(name, ctx)
       {
+        // Parameter handling 
+        paramActive(Tasks::Parameter::SCOPE_GLOBAL,
+                    Tasks::Parameter::VISIBILITY_USER);
+
+        param("Points to Visit", m_args.points_to_visit)
+        .defaultValue("")
+        .description("Points we want to visit with shortes possible non-crossing path.");
       }
 
       //! Update internal state with new parameter values.
@@ -84,6 +98,20 @@ namespace Tutorial
       void
       onResourceRelease(void)
       {
+      }
+
+      //! When activated
+      void 
+      onActivation(void)
+      {
+        setEntityState(IMC::EntityState::ESTA_NORMAL, Status::CODE_ACTIVE);
+      }
+
+      //! When deactivated
+      void 
+      onDeactivation(void)
+      {
+        setEntityState(IMC::EntityState::ESTA_NORMAL, Status::CODE_ACTIVE);
       }
 
       //! Main loop.
