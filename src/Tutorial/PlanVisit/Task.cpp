@@ -173,6 +173,72 @@ namespace Tutorial
         Coordinates::toWGS84(*msg, m_lat, m_lon);
       }
 
+      //! Calculate weight matrix for PTV
+      void
+      calculateWeights(std::vector<std::vector<double>>& weights)
+      {
+        double b, r;
+        for(unsigned int i = 0; i < m_args.points_to_visit.size(); i = i + 2)
+        {
+          Coordinates::WGS84::getNEBearingAndRange(m_lat, m_lon, m_args.points_to_visit[i], m_args.points_to_visit[i+1], &b, &r);
+          weights[0][i/2] = r; 
+          weights[i/2][0] = r;
+          for(unsigned int j = i; j < m_args.points_to_visit.size(); j = j + 2)
+          {
+            if (i==j) 
+            {
+              weights[i/2][j/2] = 0;
+            }
+            else 
+            {
+              Coordinates::WGS84::getNEBearingAndRange(m_args.points_to_visit[i], m_args.points_to_visit[i+1], m_args.points_to_visit[j], m_args.points_to_visit[j+1], &b, &r);
+              weights[i/2+1][j/2] = r;
+              weights[j/2][i/2+1] = r;
+            }
+          } 
+        }
+      }
+
+      //! Brute force traveling salesman algorithm. Based on https://www.geeksforgeeks.org/traveling-salesman-problem-tsp-implementation/
+      std::vector<unsigned int> 
+      TSP(std::vector<std::vector<double>>& weights)
+      {
+        // Store all vertex apart from source vertex
+        std::vector<unsigned int> vertex;
+        std::vector<unsigned int> best_vertex; 
+        for (unsigned int i = 0; i < m_args.points_to_visit.size(); i++) 
+        {
+          vertex.push_back(i+1);
+        }
+
+        // Store minimum weight Hamiltonian Cycle
+        double min_path = DBL_MAX;
+
+        do 
+        {
+          double current_pathweight = 0;
+
+          int k = 0;
+          for (unsigned int i = 0; i < vertex.size(); i++)
+          {
+            current_pathweight += weights[k][vertex[i]];
+            k = vertex[i];
+          }
+          current_pathweight += weights[k][0];
+
+          if (current_pathweight < min_path)
+          {
+            min_path = current_pathweight;
+            best_vertex = vertex; 
+          }
+        }
+        while
+        (
+          next_permutation(vertex.begin(), vertex.end())
+        );
+        return best_vertex;
+      }
+
       //! Main loop.
       void
       onMain(void)
