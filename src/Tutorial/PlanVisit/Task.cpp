@@ -49,6 +49,17 @@ namespace Tutorial
     {
       Arguments m_args; 
 
+      //! Vehicle State
+      uint8_t m_vstate;
+      //! True if executing plan.
+      bool m_in_mission;
+      //! Executing plan's progress.
+      float m_progress;
+      //! AUV latitude.
+      double m_lat;
+      //! AUV longitude.
+      double m_lon;
+
       //! Constructor.
       //! @param[in] name task name.
       //! @param[in] ctx context.
@@ -62,6 +73,11 @@ namespace Tutorial
         param("Points to Visit", m_args.points_to_visit)
         .defaultValue("")
         .description("Points we want to visit with shortes possible non-crossing path.");
+
+        // Subscribe to messages 
+        bind<IMC::EstimatedState>(this);
+        bind<IMC::VehicleState>(this);
+        bind<PlanControlState>(this);
       }
 
       //! Update internal state with new parameter values.
@@ -112,6 +128,26 @@ namespace Tutorial
       onDeactivation(void)
       {
         setEntityState(IMC::EntityState::ESTA_NORMAL, Status::CODE_ACTIVE);
+      }
+
+      void
+      consume(const IMC::VehicleState* msg)
+      {
+        m_vstate = msg->op_mode;
+      }
+
+      void
+      consume(const IMC::PlanControlState* msg)
+      {
+        m_in_mission = msg->state == IMC::PlanControlState::PCS_EXECUTING;
+        m_progress = msg->plan_progress;
+      }
+
+      void
+      consume(const IMC::EstimatedState* msg)
+      {
+        setEntityState(IMC::EntityState::ESTA_NORMAL, Status::CODE_ACTIVE);
+        Coordinates::toWGS84(*msg, m_lat, m_lon);
       }
 
       //! Main loop.
