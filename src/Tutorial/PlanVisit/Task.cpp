@@ -59,6 +59,8 @@ namespace Tutorial
       double m_lat;
       //! AUV longitude.
       double m_lon;
+      //! True if points_to_visit are given as pairs
+      bool m_PTV_ok;
 
       //! Constructor.
       //! @param[in] name task name.
@@ -84,6 +86,20 @@ namespace Tutorial
       void
       onUpdateParameters(void)
       {
+        if (m_args.points_to_visit.size() % 2 != 0)
+        {
+          war("Odd number of points to visit input. Task is deactivated.");
+          m_PTV_ok = false; 
+        }
+        else 
+        {
+          // Convert points to radians
+          for (size_t i = 0; i < m_args.points_to_visit.size(); ++i) {
+              m_args.points_to_visit[i] = Angles::radians(m_args.points_to_visit[i]);
+          }
+          // Set the PTV status to ok
+          m_PTV_ok = true; 
+        }
       }
 
       //! Reserve entity identifiers.
@@ -120,7 +136,14 @@ namespace Tutorial
       void 
       onActivation(void)
       {
-        setEntityState(IMC::EntityState::ESTA_NORMAL, Status::CODE_ACTIVE);
+        if (m_PTV_ok)
+        {
+          setEntityState(IMC::EntityState::ESTA_NORMAL, Status::CODE_ACTIVE);
+        }
+        else 
+        {
+          war("Cannot activate task since the given points to visit are not ok.");
+        }
       }
 
       //! When deactivated
