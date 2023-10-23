@@ -89,6 +89,10 @@ namespace Tutorial
         // Init of generator
         m_gen = Math::Random::Factory::create(Math::Random::Factory::c_default);
 
+        // Init of plan specification
+        m_plan_to_run.plan_id = "PlanVisit";
+        m_plan_to_run.description = "Visiting given points in ini file in optimal order based on range";
+
         // Subscribe to messages 
         bind<IMC::EstimatedState>(this);
         bind<IMC::VehicleState>(this);
