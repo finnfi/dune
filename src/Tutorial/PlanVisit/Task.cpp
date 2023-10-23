@@ -197,10 +197,14 @@ namespace Tutorial
       void
       consume(const IMC::PlanControlState* msg)
       {
+        if (!isActive())
+        {
+          return;
+        }
         m_in_mission = msg->state == IMC::PlanControlState::PCS_EXECUTING;
         m_progress = msg->plan_progress;
 
-        if (m_in_mission & (msg->last_outcome == PlanControlState::LPO_SUCCESS))
+        if (m_in_mission & (msg->last_outcome == PlanControlState::LPO_SUCCESS) & (msg->plan_id == m_plan_to_run.plan_id))
         {
           requestDeactivation();
         }
