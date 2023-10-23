@@ -154,7 +154,7 @@ namespace Tutorial
         {
           return;
         }
-        
+
         m_vstate = msg->op_mode;
         switch(m_vstate)
         {
@@ -204,7 +204,7 @@ namespace Tutorial
       //! A weight is defined as the range between two points
       //! @param[out] the calculated weight matrix
       std::vector<std::vector<double>>
-      calculateWeights()
+      calculateWeights(void)
       {
         // Initialize weight matrix
         unsigned int n_points = m_args.points_to_visit.size()/2+1;
@@ -359,7 +359,7 @@ namespace Tutorial
 
       //! Sends the plan using PlanControl message
       void
-      sendPlan()
+      sendPlan(void)
       {
         IMC::PlanControl plan_control;
         plan_control.type = IMC::PlanControl::PC_REQUEST;
@@ -372,7 +372,7 @@ namespace Tutorial
       }
 
       void 
-      onVehicleService()
+      onVehicleService(void)
       {
         // Generate plan
         // Need to calculate the distances between the points. We store them in a weight matrice. 
