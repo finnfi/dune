@@ -201,11 +201,15 @@ namespace Tutorial
       std::vector<std::vector<double>>
       calculateWeights()
       {
+        // Initialize weight matrix
         unsigned int n_points = m_args.points_to_visit.size()/2+1;
         std::vector<std::vector<double>> weights(n_points, std::vector<double>(n_points,0));
+
+        // Loop through all points, 
         double b, r;
         for(unsigned int i = 0; i < m_args.points_to_visit.size(); i = i + 2)
         {
+          // Calculate range from point to current auv pos
           Coordinates::WGS84::getNEBearingAndRange(m_auv_lat, m_auv_lon, m_args.points_to_visit[i], m_args.points_to_visit[i+1], &b, &r);
           weights[0][i/2+1] = r; 
           weights[i/2+1][0] = r;
@@ -213,16 +217,19 @@ namespace Tutorial
           {
             if (i==j) 
             {
+              // Range between each themselves are zero
               weights[i/2+1][j/2+1] = 0;
             }
             else 
             {
+              // Caclculate distance between different points
               Coordinates::WGS84::getNEBearingAndRange(m_args.points_to_visit[i], m_args.points_to_visit[i+1], m_args.points_to_visit[j], m_args.points_to_visit[j+1], &b, &r);
               weights[i/2+1][j/2+1] = r;
               weights[j/2+1][i/2+1] = r;
             }
           } 
         }
+        // Return
         return weights;
       }
 
@@ -242,6 +249,8 @@ namespace Tutorial
 
         // Store minimum weight Hamiltonian Cycle
         double min_path = DBL_MAX;
+
+        // Loop through all possible combinations to find shortes route. 
         do 
         {
           double current_pathweight = 0;
@@ -269,6 +278,8 @@ namespace Tutorial
         std::transform(best_indices.begin(), best_indices.end(), best_indices.begin(), [](int element) {
             return element - 1;
         });
+
+        // Return
         return best_indices;
       }
 
@@ -278,6 +289,7 @@ namespace Tutorial
       void
       createPlan(std::vector<unsigned int>& indices) 
       {
+        // Code adapted from assignment paper
         for(unsigned int i = 0; i < indices.size(); i++)
         {
           double lat = m_args.points_to_visit[indices[i]*2];
