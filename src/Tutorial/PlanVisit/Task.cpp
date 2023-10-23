@@ -175,12 +175,23 @@ namespace Tutorial
       {
         m_vstate = msg->op_mode;
 
-        // Deactivate when error is received
-        if ((m_vstate == IMC::VehicleState::VS_ERROR) & isActive())
+        if (isActive())
         {
-          m_in_mission = false;
-          requestDeactivation();
-        }
+          switch(m_vstate)
+          {
+            case IMC::VehicleState::VS_ERROR:
+              requestDeactivation();
+              m_in_mission = false;
+              m_plan_sent = false;
+              break;
+            case IMC::VehicleState::VS_SERVICE:
+              if (!m_plan_sent)
+              {
+                onVehicleService();
+              }
+              break;
+          }
+        } 
       }
 
       void
@@ -373,25 +384,27 @@ namespace Tutorial
         dispatch(plan_control);
       }
 
+      void 
+      onVehicleService()
+      {
+        // Generate plan
+        // Need to calculate the distances between the points. We store them in a weight matrice. 
+        std::vector<std::vector<double>> weights = calculateWeights();
+        // Find the order of visit by calling the TSP algorithm
+        std::vector<unsigned int> index = TSP(weights);
+        // Create plan message stored in m_plan_to_run
+        createPlan(index);
+        // Send plan stored in m_plan_to_run
+        sendPlan();
+        m_plan_sent = true;
+      }
+
       //! Main loop.
       void
       onMain(void)
       {
         while (!stopping())
         {
-          if (isActive() & !m_plan_sent & (m_vstate == IMC::VehicleState::VS_SERVICE))
-          {
-            // Generate plan
-            // Need to calculate the distances between the points. We store them in a weight matrice. 
-            std::vector<std::vector<double>> weights = calculateWeights();
-            // Find the order of visit by calling the TSP algorithm
-            std::vector<unsigned int> index = TSP(weights);
-            // Create plan message stored in m_plan_to_run
-            createPlan(index);
-            // Send plan stored in m_plan_to_run
-            sendPlan();
-            m_plan_sent = true;
-          }
           waitForMessages(1.0);
         }
       }
