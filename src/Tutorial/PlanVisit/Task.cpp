@@ -168,6 +168,8 @@ namespace Tutorial
       onDeactivation(void)
       {
         setEntityState(IMC::EntityState::ESTA_NORMAL, Status::CODE_IDLE);
+        m_in_mission = false;
+        m_plan_sent = false;
       }
 
       void
@@ -181,8 +183,6 @@ namespace Tutorial
           {
             case IMC::VehicleState::VS_ERROR:
               requestDeactivation();
-              m_in_mission = false;
-              m_plan_sent = false;
               break;
             case IMC::VehicleState::VS_SERVICE:
               if (!m_plan_sent)
