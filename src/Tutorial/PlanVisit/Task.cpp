@@ -191,7 +191,9 @@ namespace Tutorial
         Coordinates::toWGS84(*msg, m_auv_lat, m_auv_lon);
       }
 
-      //! Calculate weight matrix for PTV
+      //! Calculate weight matrix for PTV 
+      //! A weight is defined as the range between two points
+      //! @param[out] the calculated weight matrix
       std::vector<std::vector<double>>
       calculateWeights()
       {
@@ -221,6 +223,8 @@ namespace Tutorial
       }
 
       //! Brute force traveling salesman algorithm. Based on https://www.geeksforgeeks.org/traveling-salesman-problem-tsp-implementation/
+      //! @param[in] the weight matrix
+      //! @param[out] the ordering of the indices
       std::vector<unsigned int> 
       TSP(std::vector<std::vector<double>>& weights)
       {
@@ -264,6 +268,9 @@ namespace Tutorial
         return best_indices;
       }
 
+      //! Creates the plan based on the ordering of the indices
+      //! Stores plan in m_plan_to_send
+      //! @param[in] the ordering of the indices
       void
       createPlan(std::vector<unsigned int>& indices) 
       {
@@ -329,6 +336,7 @@ namespace Tutorial
         m_plan_to_run.transitions.push_back(ptrans);
       }
 
+      //! Sends the plan using PlanControl message
       void
       sendPlan()
       {
