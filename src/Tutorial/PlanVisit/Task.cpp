@@ -40,6 +40,8 @@ namespace Tutorial
   {
     using DUNE_NAMESPACES;
 
+    const double c_es_timeout = 2.5;
+
     struct Arguments 
     {
       std::vector<double> points_to_visit;
@@ -63,6 +65,8 @@ namespace Tutorial
       bool m_PTV_ok;
       //! True if plan already calculated and sent
       bool m_plan_sent;
+      //! Timer for last estimated state
+      double m_last_estate;
       //! Plan specification of plan to run
       IMC::PlanSpecification m_plan_to_run;
       //! Generator for request id
@@ -76,7 +80,8 @@ namespace Tutorial
         m_vstate(IMC::VehicleState::VS_BOOT),
         m_in_mission(false),
         m_PTV_ok(false),
-        m_plan_sent(false)
+        m_plan_sent(false),
+        m_last_estate(0)
       {
         // Parameter handling 
         paramActive(Tasks::Parameter::SCOPE_GLOBAL,
@@ -119,36 +124,6 @@ namespace Tutorial
         }
       }
 
-      //! Reserve entity identifiers.
-      void
-      onEntityReservation(void)
-      {
-      }
-
-      //! Resolve entity names.
-      void
-      onEntityResolution(void)
-      {
-      }
-
-      //! Acquire resources.
-      void
-      onResourceAcquisition(void)
-      {
-      }
-
-      //! Initialize resources.
-      void
-      onResourceInitialization(void)
-      {
-      }
-
-      //! Release resources.
-      void
-      onResourceRelease(void)
-      {
-      }
-
       //! When activated
       void 
       onActivation(void)
@@ -175,23 +150,25 @@ namespace Tutorial
       void
       consume(const IMC::VehicleState* msg)
       {
-        m_vstate = msg->op_mode;
-
-        if (isActive())
+        if (!isActive())
         {
-          switch(m_vstate)
-          {
-            case IMC::VehicleState::VS_ERROR:
-              requestDeactivation();
-              break;
-            case IMC::VehicleState::VS_SERVICE:
-              if (!m_plan_sent)
-              {
-                onVehicleService();
-              }
-              break;
-          }
-        } 
+          return;
+        }
+        
+        m_vstate = msg->op_mode;
+        switch(m_vstate)
+        {
+          case IMC::VehicleState::VS_ERROR:
+            requestDeactivation();
+            break;
+          case IMC::VehicleState::VS_SERVICE:
+            double now = Clock::get();
+            if (!m_plan_sent & ((now-m_last_estate) < c_es_timeout))
+            {
+              onVehicleService();
+            }
+            break;
+        }
       }
 
       void
@@ -201,6 +178,7 @@ namespace Tutorial
         {
           return;
         }
+
         m_in_mission = msg->state == IMC::PlanControlState::PCS_EXECUTING;
         m_progress = msg->plan_progress;
 
@@ -213,7 +191,12 @@ namespace Tutorial
       void
       consume(const IMC::EstimatedState* msg)
       {
-        setEntityState(IMC::EntityState::ESTA_NORMAL, Status::CODE_ACTIVE);
+        if (!isActive())
+        {
+          return;
+        }
+
+        m_last_estate = Clock::get();
         Coordinates::toWGS84(*msg, m_auv_lat, m_auv_lon);
       }
 
