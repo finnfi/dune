@@ -56,17 +56,27 @@ namespace Tutorial
       //! Executing plan's progress.
       float m_progress;
       //! AUV latitude.
-      double m_lat;
+      double m_auv_lat;
       //! AUV longitude.
-      double m_lon;
+      double m_auv_lon;
       //! True if points_to_visit are given as pairs
       bool m_PTV_ok;
+      //! True if plan already calculated and sent
+      bool m_plan_sent;
+      //! Plan specification of plan to run
+      IMC::PlanSpecification m_plan_to_run;
+      //! Generator for request id
+      Math::Random::Generator* m_gen;
 
       //! Constructor.
       //! @param[in] name task name.
       //! @param[in] ctx context.
       Task(const std::string& name, Tasks::Context& ctx):
-        DUNE::Tasks::Task(name, ctx)
+        DUNE::Tasks::Task(name, ctx),
+        m_vstate(IMC::VehicleState::VS_BOOT),
+        m_plan_sent(false),
+        m_PTV_ok(false),
+        m_in_mission(false)
       {
         // Parameter handling 
         paramActive(Tasks::Parameter::SCOPE_GLOBAL,
@@ -75,6 +85,9 @@ namespace Tutorial
         param("Points to Visit", m_args.points_to_visit)
         .defaultValue("")
         .description("Points we want to visit with shortes possible non-crossing path.");
+
+        // Init of generator
+        m_gen = Math::Random::Factory::create(Math::Random::Factory::c_default);
 
         // Subscribe to messages 
         bind<IMC::EstimatedState>(this);
@@ -164,79 +177,169 @@ namespace Tutorial
       {
         m_in_mission = msg->state == IMC::PlanControlState::PCS_EXECUTING;
         m_progress = msg->plan_progress;
+
+        if (m_in_mission & (msg->last_outcome == PlanControlState::LPO_SUCCESS))
+        {
+          requestDeactivation();
+        }
       }
 
       void
       consume(const IMC::EstimatedState* msg)
       {
         setEntityState(IMC::EntityState::ESTA_NORMAL, Status::CODE_ACTIVE);
-        Coordinates::toWGS84(*msg, m_lat, m_lon);
+        Coordinates::toWGS84(*msg, m_auv_lat, m_auv_lon);
       }
 
       //! Calculate weight matrix for PTV
-      void
-      calculateWeights(std::vector<std::vector<double>>& weights)
+      std::vector<std::vector<double>>
+      calculateWeights()
       {
+        unsigned int n_points = m_args.points_to_visit.size()/2+1;
+        std::vector<std::vector<double>> weights(n_points, std::vector<double>(n_points,0));
         double b, r;
         for(unsigned int i = 0; i < m_args.points_to_visit.size(); i = i + 2)
         {
-          Coordinates::WGS84::getNEBearingAndRange(m_lat, m_lon, m_args.points_to_visit[i], m_args.points_to_visit[i+1], &b, &r);
-          weights[0][i/2] = r; 
-          weights[i/2][0] = r;
+          Coordinates::WGS84::getNEBearingAndRange(m_auv_lat, m_auv_lon, m_args.points_to_visit[i], m_args.points_to_visit[i+1], &b, &r);
+          weights[0][i/2+1] = r; 
+          weights[i/2+1][0] = r;
           for(unsigned int j = i; j < m_args.points_to_visit.size(); j = j + 2)
           {
             if (i==j) 
             {
-              weights[i/2][j/2] = 0;
+              weights[i/2+1][j/2+1] = 0;
             }
             else 
             {
               Coordinates::WGS84::getNEBearingAndRange(m_args.points_to_visit[i], m_args.points_to_visit[i+1], m_args.points_to_visit[j], m_args.points_to_visit[j+1], &b, &r);
-              weights[i/2+1][j/2] = r;
-              weights[j/2][i/2+1] = r;
+              weights[i/2+1][j/2+1] = r;
+              weights[j/2+1][i/2+1] = r;
             }
           } 
         }
+        return weights;
       }
 
       //! Brute force traveling salesman algorithm. Based on https://www.geeksforgeeks.org/traveling-salesman-problem-tsp-implementation/
       std::vector<unsigned int> 
       TSP(std::vector<std::vector<double>>& weights)
       {
-        // Store all vertex apart from source vertex
-        std::vector<unsigned int> vertex;
-        std::vector<unsigned int> best_vertex; 
-        for (unsigned int i = 0; i < m_args.points_to_visit.size(); i++) 
+        // Store all indices of vertex apart from source vertex
+        std::vector<unsigned int> indices;
+        std::vector<unsigned int> best_indices; 
+        for (unsigned int i = 0; i < m_args.points_to_visit.size(); i = i+2) 
         {
-          vertex.push_back(i+1);
+          indices.push_back(i/2+1);
         }
 
         // Store minimum weight Hamiltonian Cycle
         double min_path = DBL_MAX;
-
         do 
         {
           double current_pathweight = 0;
 
           int k = 0;
-          for (unsigned int i = 0; i < vertex.size(); i++)
+          for (unsigned int i = 0; i < indices.size(); i++)
           {
-            current_pathweight += weights[k][vertex[i]];
-            k = vertex[i];
+            current_pathweight += weights[k][indices[i]];
+            k = indices[i];
           }
           current_pathweight += weights[k][0];
 
           if (current_pathweight < min_path)
           {
             min_path = current_pathweight;
-            best_vertex = vertex; 
+            best_indices = indices;  
           }
         }
         while
         (
-          next_permutation(vertex.begin(), vertex.end())
+          next_permutation(indices.begin(), indices.end())
         );
-        return best_vertex;
+
+        // Subtract 1 from each vertex to get back original index
+        std::transform(best_indices.begin(), best_indices.end(), best_indices.begin(), [](int element) {
+            return element - 1;
+        });
+        return best_indices;
+      }
+
+      void
+      createPlan(std::vector<unsigned int>& indices) 
+      {
+        for(unsigned int i = 0; i < indices.size(); i++)
+        {
+          double lat = m_args.points_to_visit[indices[i]*2];
+          double lon = m_args.points_to_visit[indices[i]*2 + 1];
+          IMC::Goto goto_maneuver;
+          goto_maneuver.lat = lat;
+          goto_maneuver.lon = lon;
+          goto_maneuver.speed = 1.6;
+          goto_maneuver.speed_units = IMC::SpeedUnits::SUNITS_METERS_PS;
+          goto_maneuver.z = 0;
+          goto_maneuver.z_units = IMC::Z_DEPTH;
+          // Set Plan Maneuver
+          IMC::PlanManeuver pman;
+          std::stringstream man_name;
+          man_name << "Goto" << (i);
+          pman.maneuver_id = man_name.str();
+          pman.data.set(goto_maneuver);
+          m_plan_to_run.maneuvers.push_back(pman);
+
+          if (i == 0)
+          {
+            m_plan_to_run.start_man_id = pman.maneuver_id;
+          }
+          else
+          {
+            // Set Plan Transition
+            IMC::PlanTransition ptrans;
+            std::stringstream prev_man_name;
+            prev_man_name << "Goto" << (i) - 1;
+            ptrans.source_man = prev_man_name.str();
+            ptrans.dest_man = man_name.str();
+            ptrans.conditions = "ManeuverIsDone";
+            m_plan_to_run.transitions.push_back(ptrans);
+          }
+        }
+
+        // Add last goto maneuver back to current location
+        IMC::Goto goto_maneuver;
+        goto_maneuver.lat = m_auv_lat;
+        goto_maneuver.lon = m_auv_lon;
+        goto_maneuver.speed = 1.6;
+        goto_maneuver.speed_units = IMC::SpeedUnits::SUNITS_METERS_PS;
+        goto_maneuver.z = 0;
+        goto_maneuver.z_units = IMC::Z_DEPTH;
+        // Set Plan Maneuver
+        IMC::PlanManeuver pman;
+        std::stringstream man_name;
+        man_name << "Goto" << (indices.size());
+        pman.maneuver_id = man_name.str();
+        pman.data.set(goto_maneuver);
+        m_plan_to_run.maneuvers.push_back(pman);
+
+        // Set Plan Transition
+        IMC::PlanTransition ptrans;
+        std::stringstream prev_man_name;
+        prev_man_name << "Goto" << indices.size() - 1;
+        ptrans.source_man = prev_man_name.str();
+        ptrans.dest_man = man_name.str();
+        ptrans.conditions = "ManeuverIsDone";
+        m_plan_to_run.transitions.push_back(ptrans);
+      }
+
+      void
+      sendPlan()
+      {
+        IMC::PlanControl plan_control;
+        plan_control.type = IMC::PlanControl::PC_REQUEST;
+        plan_control.op = IMC::PlanControl::PC_START;
+        plan_control.request_id = m_gen->random() & 0xFFFF;
+        plan_control.plan_id = m_plan_to_run.plan_id;
+        plan_control.arg.set(m_plan_to_run);
+        plan_control.setDestination(getSystemId());
+        dispatch(plan_control);
       }
 
       //! Main loop.
@@ -245,6 +348,19 @@ namespace Tutorial
       {
         while (!stopping())
         {
+          if (isActive() & !m_plan_sent & (m_vstate == IMC::VehicleState::VS_SERVICE))
+          {
+            // Generate plan
+            // Need to calculate the distances between the points. We store them in a weight matrice. 
+            std::vector<std::vector<double>> weights = calculateWeights();
+            // Find the order of visit by calling the TSP algorithm
+            std::vector<unsigned int> index = TSP(weights);
+            // Create plan message stored in m_plan_to_run
+            createPlan(index);
+            // Send plan stored in m_plan_to_run
+            sendPlan();
+            m_plan_sent = true;
+          }
           waitForMessages(1.0);
         }
       }
