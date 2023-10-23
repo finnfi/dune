@@ -174,6 +174,13 @@ namespace Tutorial
       consume(const IMC::VehicleState* msg)
       {
         m_vstate = msg->op_mode;
+
+        // Deactivate when error is received
+        if ((m_vstate == IMC::VehicleState::VS_ERROR) & isActive())
+        {
+          m_in_mission = false;
+          requestDeactivation();
+        }
       }
 
       void
