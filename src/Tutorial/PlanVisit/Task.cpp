@@ -74,9 +74,9 @@ namespace Tutorial
       Task(const std::string& name, Tasks::Context& ctx):
         DUNE::Tasks::Task(name, ctx),
         m_vstate(IMC::VehicleState::VS_BOOT),
-        m_plan_sent(false),
+        m_in_mission(false),
         m_PTV_ok(false),
-        m_in_mission(false)
+        m_plan_sent(false)
       {
         // Parameter handling 
         paramActive(Tasks::Parameter::SCOPE_GLOBAL,
