@@ -77,7 +77,7 @@ namespace Tutorial
       //! @param[in] ctx context.
       Task(const std::string& name, Tasks::Context& ctx):
         DUNE::Tasks::Task(name, ctx),
-        m_vstate(IMC::VehicleState::VS_BOOT),
+        m_vstate(NULL),
         m_in_mission(false),
         m_PTV_ok(false),
         m_plan_sent(false),
