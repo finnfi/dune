@@ -1,3 +1,13 @@
+# Finns note regarding the LSTS assignment in TTK22: 
+
+The task is implemented in src/Tutorial/PlanVisit. 
+
+The development and testing was done in the VirtualMachine provided in the lectures. 
+
+To task is tested on the lauc-xplore-1, where it is activated when the vehicle is spawned (e.g.: ./dune -c lauv-xplore-1 -p Simulation). Waypoints can be added in the ini file of the vehicle. 
+
+Compilation is done as mentioned in the lecture slides. 
+
 DUNE: Unified Navigation Environment
 ======================================
 
@@ -5,3 +15,4 @@ DUNE: Unified Navigation Environment is a runtime environment for unmanned syste
 
 [![Build Status](https://travis-ci.org/LSTS/dune.svg?branch=master)](https://travis-ci.org/LSTS/dune)
 [![Build status](https://ci.appveyor.com/api/projects/status/tdcdgyf408u4y0ng?svg=true)](https://ci.appveyor.com/project/zepinto/dune) 
+
